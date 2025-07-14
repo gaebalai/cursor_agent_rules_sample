@@ -30,6 +30,7 @@
 └── .cursor/rules/ - Cursor AI용 규칙 파일 
 ├── dinner.mdc - 저녁 식사 준비 계획 단계 규칙 
 └── dinner_execution.mdc - 저녁 식사 준비 단계 규칙
+
 ``
 
 ## 사용법
