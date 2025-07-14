@@ -1,0 +1,168 @@
+---
+description: 저녁 식사 준비 단계에 관한 규칙(쇼핑·조리·정리·되돌아보기)
+globs:
+alwaysApply: false
+---
+# 저녁 실행 규칙 - 쇼핑, 요리, 정리, 되돌아 오는 단계
+description: "저녁 식사 준비 단계에 관한 규칙(쇼핑, 조리, 정리, 되돌아보기)"
+
+#1. 저녁 쇼핑 - 쇼핑 관리 단계
+---
+trigger: "저녁 쇼핑"
+steps: 
+- name: "load_project_path" 
+action: "execute_shell" 
+command: "cat .dinner_project_path" 
+variable: "dinner_dir" 
+message: "프로젝트 경로 로드 중..." 
+
+- name: "load_variables" 
+action: "execute_shell" 
+command: "grep shopping_budget {{dinner_dir}}/shopping_list.md | cut -d':' -f2 | tr -d '원'" 
+variable: "shopping_budget" 
+message: "예산 정보 로드 중..." 
+
+- name: "manage_shopping" 
+action: "call shopping_manager" 
+params: 
+shopping_list_path: "{{dinner_dir}}/shopping_list.md" 
+budget: "{{shopping_budget}}" 
+message: "쇼핑 목록 관리를 시작합니다. 예산 내에서 필요한 재료를 정렬하세요." 
+
+- name: "record_shopping_time" 
+action: "execute_shell" 
+command: "date +%H:%M" 
+variable: "shopping_end_time" 
+message: "쇼핑 완료 시간: {{shopping_end_time}}" 
+
+- name: "update_shopping_status" 
+action: "append_to_file" 
+path: "{{dinner_dir}}/shopping_list.md" 
+template: "shopping_status_template" 
+message: "쇼핑 상태를 기록했습니다" 
+
+- name: "shopping_complete" 
+action: "confirm" 
+message : "쇼핑이 완료되었습니다. 다음은 "저녁 식사 요리"라고 말하고 요리 단계로 진행하십시오. "
+
+#2. 저녁 식사 요리 - 요리 과정 단계
+---
+trigger: "저녁 식사 요리"
+steps: 
+- name: "load_project_path" 
+action: "execute_shell" 
+command: "cat .dinner_project_path" 
+variable: "dinner_dir" 
+message: "프로젝트 경로 로드 중..." 
+
+- name: "load_cooking_method" 
+action: "read_file" 
+path: "{{dinner_dir}}/recipe.md" 
+variable: "recipe_content" 
+message: "레시피 정보 로드 중..." 
+
+- name: "ingredient_preparation" 
+action: "call" 
+target: "cooking_preparation" 
+params: 
+recipe_path: "{{dinner_dir}}/recipe.md" 
+tasks_path: "{{dinner_dir}}/tasks.md" 
+message: "재료 아래 준비를 시작합니다." 
+
+- name: "setup_cooking_timer" 
+action: "execute_shell" 
+command: "date +%s" 
+variable: "cooking_start_timestamp" 
+message: "조리 시작 시간을 기록하는 중..." 
+
+- name: "record_cooking_start" 
+action: "execute_shell" 
+command: "date +%H:%M" 
+variable: "cooking_start_time" 
+message: "요리 시작 시간: {{cooking_start_time}}" 
+
+- name: "cooking_process" 
+action: "call" 
+target: "cooking_step_manager" 
+params: 
+recipe_path: "{{dinner_dir}}/recipe.md" 
+cooking_methods: "{{cooking_methods}}" 
+message: "조리 과정을 시작합니다. 절차에 따라 요리를 진행합니다." 
+
+- name: "create_cooking_status" 
+action: "create_file" 
+path: "{{dinner_dir}}/cooking_status.md" 
+template: "cooking_status_template" 
+message: "조리 상태 파일을 만들었습니다" 
+
+- name: "confirm_cooking_complete" 
+action: "confirm" 
+message: "조리가 완료되었습니까?" 
+variable: "cooking_completed" 
+
+- name: "record_cooking_end_time" 
+action: "execute_shell" 
+command: "date +%s" 
+variable: "cooking_end_timestamp" 
+message: "조리 완료 시간을 기록하는 중..." 
+condition: "{{cooking_completed}} == true" 
+
+- name: "calculate_cooking_time" 
+action: "execute_shell" 
+command: "echo $(( {{cooking_end_timestamp}} - {{cooking_start_timestamp}} ))"" 
+variable: "total_cooking_seconds" 
+message: "조리 시간 계산 중..." 
+condition: "{{cooking_completed}} == true" 
+
+- name: "convert_cooking_time" 
+action: "execute_shell" 
+command: "echo $(( {{total_cooking_seconds}} / 60 )) 분 $(( {{total_cooking_seconds}} % 60 )) 초" 
+variable: "total_cooking_time" 
+message: "총 요리 시간: {{total_cooking_time}}" 
+condition: "{{cooking_completed}} == true" 
+
+- name: "save_cooking_time" 
+action: "execute_shell" 
+command: "echo {{total_cooking_time}} > {{dinner_dir}}/.cooking_time" 
+message: "조리 시간 저장 중..." 
+condition: "{{cooking_completed}} == true" 
+
+- name: "dinner_serving" 
+action: "call" 
+target: "serving_manager" 
+params: 
+menu: "{{dinner_menu}}" 
+people_count: "{{people_count}}" 
+message: "식탁 준비를 시작합니다." 
+condition: "{{cooking_completed}} == true" 
+
+- name: "cooking_complete" 
+action: "confirm" 
+message: "조리와 배선이 완료되었습니다. 식사를 즐기세요. 식사 후에는 "저녁의 정리"라고 말하고 정리 단계로 진행하십시오. " 
+condition: "{{cooking_completed}} == true"
+
+#3. 저녁 정리 - 정리 단계
+---
+trigger: "저녁 정리"
+steps: 
+- name: "load_project_path" 
+action: "execute_shell" 
+command: "cat .dinner_project_path" 
+variable: "dinner_dir" 
+message: "프로젝트 경로 로드 중..." 
+
+- name: "create_cleanup_checklist" 
+action: "create_file" 
+path: "{{dinner_dir}}/cleanup.md" 
+template: "cleanup_template" 
+message: "정리 체크리스트를 만들었습니다" 
+
+- name: "start_cleanup" 
+action: "confirm" 
+message: "정리를 시작하시겠습니까?" 
+variable: "cleanup_started" 
+
+- name: "record_cleanup_start" 
+action: "execute_shell" 
+comm
+---

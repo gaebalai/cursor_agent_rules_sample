@@ -1,0 +1,180 @@
+---
+description: 저녁 식사 준비를 위해 상담원이 사용자에게 답장을 하거나, 액션을 하거나, 어시스트를 하는 규칙입니다.
+globs:
+alwaysApply: false
+---
+``yaml
+
+# 1. 저녁 식사 준비 - 계획 입안 단계
+trigger: "저녁 식사 준비"
+steps: 
+- name: "start_info_collection" 
+action: "call" 
+target: "dinner_questions" 
+message: "저녁 식사를 준비할 때 질문해 주세요." 
+
+- name: "confirm_dinner_start" 
+action: "confirm" 
+message: "다음 내용으로 저녁 식사 준비 프로젝트를 시작합니다. {{info_collection}}" 
+
+- name: "get_current_date" 
+action: "execute_shell" 
+command: "date +%Y-%m-%d" 
+variable: "current_date" 
+message: "현재 날짜 검색 중..." 
+
+- name: "create_dinner_dir" 
+action: "execute_shell" 
+command: "mkdir -p Dinner/{{current_date}}_{{dinner_menu}}" 
+variable: "dinner_dir" 
+message: "저녁식사 준비 디렉토리 만들기..." 
+
+- name: "save_dinner_dir" 
+action: "execute_shell" 
+command: "echo {{dinner_dir}} > .dinner_project_path" 
+message: "프로젝트 경로 저장 중..." 
+
+- name: "create_dinner_plan" 
+action: "create_file" 
+path: "{{dinner_dir}}/plan.md" 
+template: "dinner_plan_template" 
+message: "저녁 식사 준비 계획 파일을 만들었습니다" 
+
+- name: "create_recipe" 
+action: "create_file" 
+path: "{{dinner_dir}}/recipe.md" 
+template: "recipe_template" 
+message: "레시피 파일을 만들었습니다" 
+
+- name: "create_tasks" 
+action: "create_file" 
+path: "{{dinner_dir}}/tasks.md" 
+template: "tasks_template" 
+message: "작업 목록을 만들었습니다" 
+
+- name: "create_shopping_list" 
+action: "create_file" 
+path: "{{dinner_dir}}/shopping_list.md" 
+template: "shopping_list_template" 
+message: "쇼핑 목록을 만들었습니다" 
+
+- name: "plan_created" 
+action: "confirm" 
+message: "초기 계획을 만들었습니다. 계획 세부정보를 확인할 수 있나요?" 
+variable: "review_plan" 
+
+- name: "dinner_plan_next_steps" 
+action: "notify" 
+message: "앞으로 저녁 식사를 준비하려면 다음 단계가 있습니다.\n\n1. 저녁 식사 계획 개선"이라고 말하고 계획을 개선합니다.
+
+# 1.5 저녁 식사 계획 개선 - 계획 개선 단계
+---
+trigger: "저녁 식사 계획 개선"
+steps: 
+- name: "load_project_path" 
+action: "execute_shell" 
+command: "cat .dinner_project_path" 
+variable: "dinner_dir" 
+message: "프로젝트 경로 로드 중..." 
+
+- name: "load_dinner_menu" 
+action: "execute_shell" 
+command: "grep '메뉴:' {{dinner_dir}}/recipe.md | head -1 | cut -d':' -f2 | tr -d ' '" 
+variable: "dinner_menu" 
+message: "메뉴 정보 로드 중..." 
+
+- name: "confirm_plan_improvement" 
+action: "confirm" 
+message: "{{dinner_menu}}" 계획을 개선합니다. 어떤 점을 개선하고 싶습니까? 
+variable: "improvement_needed" 
+
+- name: "start_feedback_collection" 
+action: "confirm" 
+message: "의견 수집을 시작합니다. 각 질문에 구체적으로 답변해 주세요. 준비하시겠습니까?" 
+variable: "start_feedback" 
+
+- name: "collect_plan_feedback" 
+action: "call" 
+target: "plan_feedback_questions" 
+params: 
+dinner_menu: "{{dinner_menu}}" 
+dinner_dir: "{{dinner_dir}}" 
+variable: "plan_feedback" 
+message: "계획에 대한 의견 수집..." 
+condition: "{{start_feedback}} == true" 
+
+- name: "create_feedback_summary" 
+action: "create_file" 
+path: "{{dinner_dir}}/feedback.md" 
+template: "feedback_summary_template" 
+message: "피드백 요약 파일을 만들었습니다" 
+condition: "{{start_feedback}} == true" 
+
+- name: "update_plan_based_on_feedback" 
+action: "confirm" 
+message: "의견에 따라 플랜을 업데이트하시겠습니까?\n\n수집한 피드백:\n{{plan_feedback}}" 
+variable: "update_plan" 
+condition: "{{start_feedback}} == true" 
+
+- name: "update_recipe" 
+action: "modify_file" 
+path: "{{dinner_dir}}/recipe.md" 
+variable: "updated_recipe" 
+message: "레시피 업데이트 중..." 
+condition: "{{update_plan}} == true" 
+
+- name: "update_tasks" 
+action: "modify_file" 
+path: "{{dinner_dir}}/tasks.md" 
+variable: "updated_tasks" 
+message: "작업 목록 업데이트 중..." 
+condition: "{{update_plan}} == true" 
+
+- name: "update_shopping_list" 
+action: "modify_file" 
+path: "{{dinner_dir}}/shopping_list.md" 
+variable: "updated_shopping_list" 
+message: "쇼핑 목록 업데이트 중..." 
+condition: "{{update_plan}} == true" 
+
+- name: "plan_update_complete" 
+action: "notify" 
+message: "계획 업데이트가 완료되었습니다." 
+condition: "{{update_plan}} == true"
+
+
+# dinner questions 정의
+dinner_questions: 
+- question: "오늘의 저녁 식사 메뉴 이름을 알려주세요(예: 카레라이스, 파스타, 구운 생선 정식 등)" 
+key: "dinner_menu" 
+required: true 
+
+- question: "식사 인원은 몇 명입니까?" 
+key: "people_count" 
+required: true 
+
+- question: "내역을 가르쳐 주세요(성인 몇명, 어린이 몇명)" 
+key: "people_details" 
+required: true 
+
+- question: "조리 예정 시간은 언제입니까? (예: 18:00)" 
+key: "cooking_time" 
+required: false 
+default: "18:30" 
+
+- question: "식사 예정 시간은 언제입니까? (예: 19:00)" 
+key: "dinner_time" 
+required: false 
+default: "19:30" 
+
+- question: "예산은 얼마입니까?(예: 20000원)" 
+key: "budget" 
+required: false 
+default: "2000원" 
+
+- question: "식사에서 피하고 싶은 재료가 있습니까? (알레르기 등)" 
+key: "allergies" 
+required: false 
+d
+
+---
